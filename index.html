@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>一問一答 - Anki風デッキ</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;background:#f5f5f5;color:#222}
+button,input{font:inherit}button{border:0;border-radius:10px;padding:11px 16px;cursor:pointer;touch-action:manipulation}button:active{transform:scale(.97)}
+.container{max-width:1050px;margin:0 auto;padding:16px}h1{text-align:center;margin:5px 0 18px}
+.screen{display:none}.screen.active{display:block}.card{background:#fff;border-radius:12px;padding:16px;margin-bottom:14px;box-shadow:0 2px 7px #00000012}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.tabs button{background:#ddd}.tabs button.active{background:#1976d2;color:#fff}
+.primary{background:#1976d2;color:#fff;font-weight:700}.green{background:#2e7d32;color:#fff}.red{background:#c62828;color:#fff}.gray{background:#555;color:#fff}.light{background:#ddd}
+.actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:14px}
+.deck-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(245px,1fr));gap:12px}.deck-card{background:#fff;border:1px solid #ddd;border-radius:12px;padding:15px}
+.deck-card h3{margin:0 0 7px;word-break:break-word}.muted{color:#666;font-size:14px}
+table{width:100%;border-collapse:collapse;min-width:650px}th,td{border:1px solid #ccc;padding:8px;text-align:left}th{background:#eee}
+td[contenteditable=true]{min-height:35px;outline:none}td[contenteditable=true]:focus{background:#fffde7}
+.table-wrap{overflow-x:auto;border-radius:10px}input[type=text],input[type=search]{width:100%;padding:12px;border:1px solid #bbb;border-radius:9px;background:#fff}
+.search-row{display:flex;gap:8px}.search-row input{flex:1}.result-item{background:#fff;border-radius:10px;padding:12px;margin:8px 0;border:1px solid #ddd;cursor:pointer}
+.badge{display:inline-block;padding:3px 8px;border-radius:999px;background:#eee;font-size:12px;margin-right:5px}
+.empty{text-align:center;color:#777;padding:25px}.small{font-size:13px;color:#666}
+.bg-setting{margin-top:18px}.bg-setting img{display:none;width:100%;max-height:230px;object-fit:contain;margin-top:10px;border-radius:10px;border:1px solid #ccc}
+.deck-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.deck-tabs button{background:#ddd}.deck-tabs button.active{background:#1976d2;color:#fff}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px}
+.stat-box{background:#f9f9f9;border:1px solid #e0e0e0;border-radius:10px;padding:14px;text-align:center}
+.stat-box .val{font-size:24px;font-weight:700;color:#1976d2;margin-top:4px}
+.chart-container{display:flex;justify-content:center;align-items:center;margin:16px 0;flex-direction:column}
+#quizScreen{position:fixed;inset:0;overflow-y:auto;background:#f5f5f5;background-position:center;background-repeat:no-repeat;background-size:cover;background-attachment:fixed;z-index:20}
+#quizScreen:before{content:"";position:fixed;inset:0;background:rgba(0,0,0,.15);pointer-events:none;z-index:0}
+.quiz-content{position:relative;z-index:1;max-width:900px;margin:auto;padding:75px 16px 25px}
+.quiz-top{position:fixed;top:12px;left:12px;right:12px;z-index:5;display:flex;justify-content:space-between;gap:8px;pointer-events:none}
+.quiz-top button{pointer-events:auto;background:rgba(255,255,255,.94);border:1px solid #ccc;padding:9px 12px;font-size:14px}
+.quiz-meta{text-align:center;background:rgba(255,255,255,.9);border-radius:10px;padding:8px 12px;width:max-content;max-width:100%;margin:0 auto 10px}
+.quiz-number{text-align:center;color:#555;margin-bottom:14px}
+.question-box,.answer-box{background:rgba(255,255,255,.94);border-radius:15px;padding:28px 20px;text-align:center;line-height:1.6;word-break:break-word;box-shadow:0 2px 8px #00000022}
+.question-box{min-height:230px;display:flex;align-items:center;justify-content:center;font-size:27px}.answer-box{margin-top:18px;font-size:27px;display:none}
+@media(max-width:600px){.container{padding:10px}.question-box,.answer-box{font-size:22px}.search-row{flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="container">
+<div id="mainScreen" class="screen active">
+<h1>一問一答</h1>
+<div class="tabs">
+<button id="tabDeck" class="active" onclick="showMainTab('decks')">デッキ</button>
+<button id="tabSearch" onclick="showMainTab('search')">検索</button>
+<button id="tabStats" onclick="showMainTab('stats')">統計</button>
+</div>
+
+<section id="decksTab">
+<div class="card">
+<h2>デッキ</h2>
+<div class="actions" style="justify-content:flex-start">
+<button class="primary" onclick="createDeck()">＋ デッキを作成</button>
+</div>
+<div id="deckList" class="deck-grid" style="margin-top:14px"></div>
+<div class="bg-setting">
+<h3>全体の背景画像</h3>
+<p class="small">ここで設定した背景画像は、すべてのデッキの一問一答画面に適用されます。</p>
+<input id="globalBackgroundInput" type="file" accept="image/*">
+<img id="globalBackgroundPreview" alt="背景画像">
+<button id="removeGlobalBackgroundButton" class="light" style="display:none" onclick="removeGlobalBackground()">背景画像を削除</button>
+</div>
+</div>
+</section>
+
+<section id="searchTab" style="display:none">
+<div class="card">
+<h2>検索</h2>
+<div class="search-row">
+<input id="searchInput" type="search" placeholder="問題番号・問題文・答え・デッキ名を検索" oninput="renderSearch()">
+<button class="gray" onclick="document.getElementById('searchInput').value='';renderSearch()">クリア</button>
+</div>
+<div id="searchResults" style="margin-top:12px"></div>
+</div>
+</section>
+
+<section id="statsTab" style="display:none">
+<div class="card">
+<h2>学習統計</h2>
+<h3>問題数の概要</h3>
+<div class="stats-grid">
+<div class="stat-box"><div>合計問題数</div><div id="statTotalQuestions" class="val">0</div></div>
+<div class="stat-box"><div>復習に入っている問題数</div><div id="statReviewQuestions" class="val">0</div></div>
+</div>
+<div class="chart-container">
+<canvas id="reviewPieChart" width="220" height="220"></canvas>
+<div id="chartLegend" class="small" style="margin-top:8px"></div>
+</div>
+<h3>本日の学習（回答数）</h3>
+<div class="stats-grid">
+<div class="stat-box"><div>正解</div><div id="statTodayCorrect" class="val" style="color:#2e7d32">0</div></div>
+<div class="stat-box"><div>誤答</div><div id="statTodayWrong" class="val" style="color:#c62828">0</div></div>
+<div class="stat-box"><div>本日合計</div><div id="statTodayTotal" class="val">0</div></div>
+</div>
+<h3>今までの累計学習（回答数）</h3>
+<div class="stats-grid">
+<div class="stat-box"><div>正解</div><div id="statTotalCorrect" class="val" style="color:#2e7d32">0</div></div>
+<div class="stat-box"><div>誤答</div><div id="statTotalWrong" class="val" style="color:#c62828">0</div></div>
+<div class="stat-box"><div>累計合計</div><div id="statTotalAnswers" class="val">0</div></div>
+</div>
+</div>
+</section>
+</div>
+
+<div id="deckEditorScreen" class="screen">
+<button class="gray" onclick="backToDecks()">← デッキ一覧</button>
+<div class="card" style="margin-top:12px">
+<h2 id="editorTitle">デッキ</h2>
+<p class="small">全問題デッキには、問題番号・問題文・答えの3列をExcel / Googleスプレッドシートから貼り付けできます。</p>
+<div class="deck-tabs">
+<button id="allTabButton" class="active" onclick="showDeckTab('all')">全問題デッキ</button>
+<button id="reviewTabButton" onclick="showDeckTab('review')">復習デッキ</button>
+</div>
+
+<section id="allQuestionsPanel">
+<p class="small">復習デッキに追加したい問題の左側チェックボックスにチェックを入れてボタンを押してください。</p>
+<div class="actions" style="justify-content:flex-start;margin-bottom:10px">
+<button class="green" onclick="addSelectedToReview()">選択した問題を復習デッキに追加</button>
+</div>
+<div class="table-wrap">
+<table><thead><tr><th style="width:40px;text-align:center"><input type="checkbox" onchange="toggleSelectAll(this)"></th><th>問題番号</th><th>問題文</th><th>答え</th></tr></thead>
+<tbody id="allTableBody"></tbody></table>
+</div>
+<div class="actions">
+<button class="gray" onclick="addAllRow()">＋ 行を追加</button>
+<button class="light" onclick="clearAllTable()">表をクリア</button>
+<button class="primary" onclick="saveDeck()">全問題デッキを保存</button>
+<button class="green" onclick="startQuizFromEditor('all')">全問題で一問一答</button>
+</div>
+</section>
+
+<section id="reviewQuestionsPanel" style="display:none">
+<p class="small">復習デッキに登録されている問題一覧です。</p>
+<div class="actions" style="justify-content:flex-start;margin-bottom:10px">
+<button class="primary" onclick="startQuizFromEditor('review')">復習デッキで一問一答</button>
+</div>
+<div class="table-wrap">
+<table><thead><tr><th>問題番号</th><th>問題文</th><th>答え</th><th style="width:80px">操作</th></tr></thead>
+<tbody id="reviewTableBody"></tbody></table>
+</div>
+</section>
+</div>
+</div>
+</div>
+
+<div id="quizScreen" class="screen">
+<div class="quiz-top"><button onclick="leaveQuiz()">← デッキ画面</button><button onclick="goSearchFromQuiz()">検索</button></div>
+<div class="quiz-content">
+<div id="quizMeta" class="quiz-meta"></div><div id="quizNumber" class="quiz-number"></div>
+<div id="questionBox" class="question-box"></div><div id="answerBox" class="answer-box"></div>
+<div class="actions"><button id="knowButton" class="green" style="font-size:22px;min-width:180px" onclick="knowAnswer()">わかった</button>
+<button id="showAnswerButton" class="primary" style="font-size:20px;display:none" onclick="showAnswer()">答えを出す</button></div>
+<div id="resultButtons" class="actions" style="display:none"><button class="green" onclick="markCorrect()">正解</button><button class="red" onclick="markWrong()">誤答</button></div>
+</div></div>
+
+<script>
+const STORAGE_KEY="anki_like_qa_v3";
+let state={decks:{},activeDeckId:null,backgroundImage:null,stats:{todayDate:"",todayCorrect:0,todayWrong:0,totalCorrect:0,totalWrong:0}};
+let quizOrder=[],currentIndex=0,wrongQuestions=[],quizMode="all",typingTimer=null,autoAnswerTimer=null;
+let questionText="",questionPosition=0;
+
+function uid(){return "d_"+Date.now()+"_"+Math.random().toString(36).slice(2,9)}
+function getTodayString(){const d=new Date();return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate()}
+
+function loadState(){
+ try{const x=JSON.parse(localStorage.getItem(STORAGE_KEY));if(x&&x.decks)state=x;}catch(e){}
+ if(!state.decks)state.decks={};
+ if(!("backgroundImage" in state))state.backgroundImage=null;
+ if(!state.stats)state.stats={todayDate:"",todayCorrect:0,todayWrong:0,totalCorrect:0,totalWrong:0};
+ const t=getTodayString();
+ if(state.stats.todayDate!==t){state.stats.todayDate=t;state.stats.todayCorrect=0;state.stats.todayWrong=0}
+ Object.values(state.decks).forEach(d=>{
+  if(!Array.isArray(d.questions))d.questions=[];
+  if(!Array.isArray(d.reviewQuestions))d.reviewQuestions=[];
+  if(!("progress" in d))d.progress=null;
+ });
+}
+function persist(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state))}
+function deck(){return state.decks[state.activeDeckId]}
+function showScreen(id){document.querySelectorAll(".screen").forEach(x=>x.classList.remove("active"));document.getElementById(id).classList.add("active")}
+
+function showMainTab(tab){
+ document.getElementById("decksTab").style.display=tab==="decks"?"block":"none";
+ document.getElementById("searchTab").style.display=tab==="search"?"block":"none";
+ document.getElementById("statsTab").style.display=tab==="stats"?"block":"none";
+ document.getElementById("tabDeck").classList.toggle("active",tab==="decks");
+ document.getElementById("tabSearch").classList.toggle("active",tab==="search");
+ document.getElementById("tabStats").classList.toggle("active",tab==="stats");
+ if(tab==="decks")renderDecks();
+ else if(tab==="search")renderSearch();
+ else if(tab==="stats")renderStats();
+}
+
+function createDeck(){
+ const name=prompt("デッキ名を入力してください");if(!name||!name.trim())return;
+ const id=uid();state.decks[id]={id,name:name.trim(),questions:[],reviewQuestions:[],progress:null};
+ state.activeDeckId=id;persist();openEditor(id);
+}
+
+function renderDecks(){
+ const el=document.getElementById("deckList"),ids=Object.keys(state.decks);
+ if(!ids.length){el.innerHTML='<div class="empty">デッキがありません。<br>「＋ デッキを作成」から作成してください。</div>';return}
+ el.innerHTML=ids.map(id=>{
+  const d=state.decks[id],p=d.progress;
+  const total=p&&p.quizOrder?p.quizOrder.length:d.questions.length;
+  const pos=p&&p.quizOrder?Math.min(p.currentIndex,total):0;
+  return `<div class="deck-card"><h3>${esc(d.name)}</h3>
+  <div class="muted">全問題：${d.questions.length}問</div><div class="muted">復習：${d.reviewQuestions.length}問</div>
+  <div class="muted">保存された進捗：${pos} / ${total}</div>
+  <div class="actions" style="justify-content:flex-start">
+  <button class="primary" onclick="openEditor('${id}')">編集</button>
+  ${d.questions.length?`<button class="green" onclick="startQuiz('${id}','all')">全問題</button>`:""}
+  ${d.reviewQuestions.length?`<button class="green" onclick="startQuiz('${id}','review')">復習</button>`:""}
+  <button class="light" onclick="renameDeck('${id}')">名前変更</button><button class="red" onclick="deleteDeck('${id}')">削除</button>
+  </div></div>`;
+ }).join("");
+}
+
+function renameDeck(id){const d=state.decks[id],n=prompt("デッキ名",d.name);if(n&&n.trim()){d.name=n.trim();persist();renderDecks()}}
+function deleteDeck(id){if(!confirm("このデッキと保存した進捗を削除しますか？"))return;delete state.decks[id];if(state.activeDeckId===id)state.activeDeckId=null;persist();renderDecks()}
+
+function openEditor(id){
+ state.activeDeckId=id;persist();showScreen("deckEditorScreen");
+ document.getElementById("editorTitle").textContent=deck().name;
+ renderAllTable();renderReviewTable();showDeckTab("all");
+}
+
+function showDeckTab(tab){
+ document.getElementById("allQuestionsPanel").style.display=tab==="all"?"block":"none";
+ document.getElementById("reviewQuestionsPanel").style.display=tab==="review"?"block":"none";
+ document.getElementById("allTabButton").classList.toggle("active",tab==="all");
+ document.getElementById("reviewTabButton").classList.toggle("active",tab==="review");
+}
+
+function makeEditableRow(q){
+ const tr=document.createElement("tr");
+ const td0=document.createElement("td");
+ td0.style.textAlign="center";
+ const cb=document.createElement("input");
+ cb.type="checkbox";
+ cb.dataset.number=q.number||"";
+ td0.appendChild(cb);
+ tr.appendChild(td0);
+
+ [q.number,q.question,q.answer].forEach((v,idx)=>{
+  const td=document.createElement("td");
+  td.contentEditable="true";
+  td.textContent=v||"";
+  if(idx===0){
+   td.addEventListener("input",()=>{cb.dataset.number=td.textContent.trim()});
+  }
+  tr.appendChild(td);
+ });
+ return tr;
+}
+
+function toggleSelectAll(masterCb){
+ const cbs=document.querySelectorAll("#allTableBody input[type=checkbox]");
+ cbs.forEach(cb=>cb.checked=masterCb.checked);
+}
+
+function renderAllTable(){
+ const tb=document.getElementById("allTableBody");tb.innerHTML="";
+ const qs=deck().questions;
+ (qs.length?qs:[{number:"",question:"",answer:""}]).forEach(q=>tb.appendChild(makeEditableRow(q)));
+}
+
+function renderReviewTable(){
+ const d=deck(),tb=document.getElementById("reviewTableBody");tb.innerHTML="";
+ if(!d.reviewQuestions.length){tb.innerHTML='<tr><td colspan="4" class="empty">復習デッキに登録されている問題はありません。</td></tr>';return}
+ d.reviewQuestions.forEach(q=>{
+  const tr=document.createElement("tr");
+  [q.number,q.question,q.answer].forEach(v=>{const td=document.createElement("td");td.textContent=v||"";tr.appendChild(td)});
+  const tdBtn=document.createElement("td");
+  const btn=document.createElement("button");
+  btn.className="red";
+  btn.style.padding="4px 8px";
+  btn.style.fontSize="12px";
+  btn.textContent="削除";
+  btn.onclick=()=>removeFromReviewSingle(q.number);
+  tdBtn.appendChild(btn);
+  tr.appendChild(tdBtn);
+  tb.appendChild(tr);
+ });
+}
+
+function addAllRow(){document.getElementById("allTableBody").appendChild(makeEditableRow({number:"",question:"",answer:""}))}
+function clearAllTable(){if(confirm("全問題デッキの入力内容をすべて消しますか？")){document.getElementById("allTableBody").innerHTML="";addAllRow()}}
+
+function readAllTable(){
+ return [...document.querySelectorAll("#allTableBody tr")].map(tr=>{
+  const tds=[...tr.querySelectorAll("td")];
+  if(tds.length<4)return null;
+  return [tds[1].innerText.trim(),tds[2].innerText.trim(),tds[3].innerText.trim()];
+ }).filter(a=>a&&a.length>=3&&a.every(Boolean)).map(a=>({number:a[0],question:a[1],answer:a[2]}));
+}
+
+document.getElementById("allTableBody").addEventListener("paste",e=>{
+ const text=(e.clipboardData||window.clipboardData).getData("text");
+ if(!text.includes("\t")&&!text.includes("\n"))return;e.preventDefault();
+ const rows=text.replace(/\r/g,"").split("\n").filter(x=>x.trim());
+ document.getElementById("allTableBody").innerHTML="";
+ rows.forEach(r=>{const c=r.split("\t");document.getElementById("allTableBody").appendChild(makeEditableRow({number:c[0]||"",question:c[1]||"",answer:c[2]||""}))});
+});
+
+function reconcileProgress(d){
+ if(!d.progress||!Array.isArray(d.progress.quizOrder))return;
+ const byNumber=new Map(d.questions.map(q=>[String(q.number),q]));
+ d.progress.quizOrder=d.progress.quizOrder.map(old=>{
+  const fresh=byNumber.get(String(old.number));
+  return fresh?{...fresh}:{...old};
+ }).filter(q=>byNumber.has(String(q.number)));
+ d.progress.currentIndex=Math.min(d.progress.currentIndex||0,d.progress.quizOrder.length);
+ d.progress.wrongQuestions=(d.progress.wrongQuestions||[]).filter(n=>byNumber.has(String(n)));
+ if(!d.progress.quizOrder.length||d.progress.currentIndex>=d.progress.quizOrder.length)d.progress=null;
+}
+
+function saveDeck(){
+ const d=deck();if(!d)return;
+ d.questions=readAllTable();
+ const valid=new Map(d.questions.map(q=>[String(q.number),q]));
+ d.reviewQuestions=d.reviewQuestions.map(q=>valid.get(String(q.number))).filter(Boolean);
+ reconcileProgress(d);persist();renderReviewTable();alert("全問題デッキを保存しました。");
+}
+
+function addSelectedToReview(){
+ const d=deck();
+ saveDeck();
+ const selected=[...document.querySelectorAll("#allTableBody input[type=checkbox]:checked")].map(x=>String(x.dataset.number)).filter(Boolean);
+ if(!selected.length){alert("復習デッキに追加したい問題のチェックボックスを選択してください。");return}
+ const map=new Map(d.questions.map(q=>[String(q.number),q]));
+ const current=new Map(d.reviewQuestions.map(q=>[String(q.number),q]));
+ selected.forEach(n=>{if(map.has(n))current.set(n,map.get(n))});
+ d.reviewQuestions=[...current.values()];persist();renderReviewTable();alert("選択した問題を復習デッキに追加しました。");
+}
+
+function removeFromReviewSingle(num){
+ const d=deck();
+ d.reviewQuestions=d.reviewQuestions.filter(q=>String(q.number)!==String(num));
+ persist();renderReviewTable();
+}
+
+function startQuizFromEditor(mode){saveDeck();const d=deck();if((mode==="all"?d.questions:d.reviewQuestions).length)startQuiz(d.id,mode)}
+
+function startQuiz(id,mode="all",resume=true){
+ const d=state.decks[id],source=mode==="review"?d.reviewQuestions:d.questions;
+ if(!d||!source.length){alert("問題がありません。");return}
+ state.activeDeckId=id;quizMode=mode;
+ let p=d.progress;
+ const validNumbers=new Set(source.map(q=>String(q.number)));
+ if(resume&&p&&p.mode===mode&&Array.isArray(p.quizOrder)&&p.quizOrder.length&&p.quizOrder.every(q=>validNumbers.has(String(q.number)))&&p.currentIndex<p.quizOrder.length){
+  quizOrder=p.quizOrder.map(q=>({...source.find(x=>String(x.number)===String(q.number)),...q}));
+  currentIndex=p.currentIndex;wrongQuestions=p.wrongQuestions||[];
+ }else{
+  quizOrder=source.map(q=>({...q}));shuffle(quizOrder);currentIndex=0;wrongQuestions=[];
+  d.progress={mode,quizOrder,currentIndex,wrongQuestions};persist();
+ }
+ applyQuizBackground();showScreen("quizScreen");showQuestion();
+}
+
+function applyQuizBackground(){const q=document.getElementById("quizScreen"),u=state.backgroundImage;q.style.backgroundImage=u?`url("${u}")`:"none"}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}}
+
+function showQuestion(){
+ clearTimers();const c=quizOrder[currentIndex];if(!c){showResult();return}
+ document.getElementById("quizMeta").textContent=`${deck().name}｜${quizMode==="review"?"復習デッキ":"全問題デッキ"}｜問題番号：${c.number}`;
+ document.getElementById("quizNumber").textContent=`${currentIndex+1} / ${quizOrder.length} 問目`;
+ const qb=document.getElementById("questionBox"),ab=document.getElementById("answerBox");qb.textContent="";ab.textContent=c.answer;ab.style.display="none";
+ document.getElementById("knowButton").style.display="inline-block";document.getElementById("showAnswerButton").style.display="none";document.getElementById("resultButtons").style.display="none";
+ questionText=c.question;questionPosition=0;
+ typingTimer=setInterval(()=>{if(questionPosition>=questionText.length){clearInterval(typingTimer);typingTimer=null;return}qb.textContent+=questionText.charAt(questionPosition++);},75);
+ saveProgress();
+}
+
+function knowAnswer(){if(typingTimer!==null){clearInterval(typingTimer);typingTimer=null}document.getElementById("knowButton").style.display="none";document.getElementById("showAnswerButton").style.display="inline-block";autoAnswerTimer=setTimeout(showAnswer,3000)}
+function showAnswer(){clearTimers();document.getElementById("questionBox").textContent=quizOrder[currentIndex].question;document.getElementById("answerBox").style.display="block";document.getElementById("showAnswerButton").style.display="none";document.getElementById("knowButton").style.display="none";document.getElementById("resultButtons").style.display="flex"}
+
+function markCorrect(){recordAnswer(true);nextQuestion()}
+function markWrong(){wrongQuestions.push(quizOrder[currentIndex].number);recordAnswer(false);nextQuestion()}
+
+function recordAnswer(isCorrect){
+ const t=getTodayString();
+ if(state.stats.todayDate!==t){state.stats.todayDate=t;state.stats.todayCorrect=0;state.stats.todayWrong=0}
+ if(isCorrect){state.stats.todayCorrect++;state.stats.totalCorrect++}
+ else{state.stats.todayWrong++;state.stats.totalWrong++}
+ persist();
+}
+
+function nextQuestion(){clearTimers();currentIndex++;if(currentIndex>=quizOrder.length){saveProgress();showResult();return}saveProgress();showQuestion()}
+function saveProgress(){const d=deck();if(!d)return;d.progress={mode:quizMode,quizOrder:quizOrder.map(q=>({...q})),currentIndex,wrongQuestions:[...wrongQuestions]};persist()}
+function showResult(){const d=deck();if(d)d.progress=null;persist();alert(wrongQuestions.length?`終了！\n誤答した問題の番号：${wrongQuestions.join("、")}`:"終了！\n全問正解！");showMainDeckAfterQuiz()}
+function leaveQuiz(){clearTimers();saveProgress();showMainDeckAfterQuiz()}
+function showMainDeckAfterQuiz(){showScreen("mainScreen");showMainTab("decks")}
+function goSearchFromQuiz(){clearTimers();saveProgress();showScreen("mainScreen");showMainTab("search")}
+function backToDecks(){showScreen("mainScreen");showMainTab("decks")}
+
+function renderSearch(){
+ const q=(document.getElementById("searchInput").value||"").trim().toLowerCase(),out=[];
+ Object.values(state.decks).forEach(d=>d.questions.forEach((x,i)=>{
+  const hay=[d.name,x.number,x.question,x.answer].join("\n").toLowerCase();if(!q||hay.includes(q))out.push({d,x,i});
+ }));
+ const el=document.getElementById("searchResults");
+ el.innerHTML=out.length?out.map(r=>`<div class="result-item" onclick="openSearchResult('${r.d.id}')"><span class="badge">${esc(r.d.name)}</span><b>問題番号：${esc(r.x.number)}</b><div style="margin-top:5px">${esc(r.x.question)}</div><div class="muted">答え：${esc(r.x.answer)}</div></div>`).join(""):'<div class="empty">該当する問題はありません。</div>';
+}
+function openSearchResult(id){openEditor(id)}
+
+function renderStats(){
+ let totalQ=0,reviewQ=0;
+ Object.values(state.decks).forEach(d=>{
+  totalQ+=d.questions.length;
+  reviewQ+=d.reviewQuestions.length;
+ });
+ const nonReviewQ=Math.max(0,totalQ-reviewQ);
+
+ document.getElementById("statTotalQuestions").textContent=totalQ;
+ document.getElementById("statReviewQuestions").textContent=reviewQ;
+
+ const t=getTodayString();
+ if(state.stats.todayDate!==t){state.stats.todayDate=t;state.stats.todayCorrect=0;state.stats.todayWrong=0}
+
+ document.getElementById("statTodayCorrect").textContent=state.stats.todayCorrect;
+ document.getElementById("statTodayWrong").textContent=state.stats.todayWrong;
+ document.getElementById("statTodayTotal").textContent=state.stats.todayCorrect+state.stats.todayWrong;
+
+ document.getElementById("statTotalCorrect").textContent=state.stats.totalCorrect;
+ document.getElementById("statTotalWrong").textContent=state.stats.totalWrong;
+ document.getElementById("statTotalAnswers").textContent=state.stats.totalCorrect+state.stats.totalWrong;
+
+ drawPieChart(reviewQ,nonReviewQ);
+}
+
+function drawPieChart(reviewCount,nonReviewCount){
+ const canvas=document.getElementById("reviewPieChart");
+ const ctx=canvas.getContext("2d");
+ const total=reviewCount+nonReviewCount;
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+
+ const legend=document.getElementById("chartLegend");
+
+ if(total===0){
+  ctx.beginPath();
+  ctx.arc(110,110,80,0,2*Math.PI);
+  ctx.fillStyle="#e0e0e0";
+  ctx.fill();
+  legend.innerHTML="データがありません";
+  return;
+ }
+
+ const reviewAngle=(reviewCount/total)*2*Math.PI;
+ const cx=110,cy=110,r=80;
+
+ ctx.beginPath();
+ ctx.moveTo(cx,cy);
+ ctx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+reviewAngle);
+ ctx.closePath();
+ ctx.fillStyle="#1976d2";
+ ctx.fill();
+
+ ctx.beginPath();
+ ctx.moveTo(cx,cy);
+ ctx.arc(cx,cy,r,-Math.PI/2+reviewAngle,Math.PI*1.5);
+ ctx.closePath();
+ ctx.fillStyle="#e0e0e0";
+ ctx.fill();
+
+ const rPct=Math.round((reviewCount/total)*100);
+ const nrPct=100-rPct;
+ legend.innerHTML=`<span style="color:#1976d2">■</span> 復習問題: ${reviewCount}問 (${rPct}%) &nbsp;&nbsp;&nbsp; <span style="color:#aaa">■</span> それ以外: ${nonReviewCount}問 (${nrPct}%)`;
+}
+
+document.getElementById("globalBackgroundInput").addEventListener("change",e=>{
+ const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{state.backgroundImage=r.result;persist();setGlobalBackground(r.result)};r.readAsDataURL(f);
+});
+function setGlobalBackground(u){const img=document.getElementById("globalBackgroundPreview"),btn=document.getElementById("removeGlobalBackgroundButton");if(u){img.src=u;img.style.display="block";btn.style.display="inline-block"}else{img.src="";img.style.display="none";btn.style.display="none"}}
+function removeGlobalBackground(){state.backgroundImage=null;persist();document.getElementById("globalBackgroundInput").value="";setGlobalBackground(null)}
+function clearTimers(){if(typingTimer!==null){clearInterval(typingTimer);typingTimer=null}if(autoAnswerTimer!==null){clearTimeout(autoAnswerTimer);autoAnswerTimer=null}}
+function esc(s){const d=document.createElement("div");d.textContent=String(s??"");return d.innerHTML}
+window.addEventListener("beforeunload",()=>{try{if(document.getElementById("quizScreen").classList.contains("active"))saveProgress()}catch(e){}});
+
+loadState();setGlobalBackground(state.backgroundImage);renderDecks();
+</script>
+</body>
+</html>
